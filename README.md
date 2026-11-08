@@ -11,9 +11,17 @@ Built with **FastAPI + SQLAlchemy**, migrated with **Alembic**, tested with
 
 ## Live demo
 
-Deployment in progress — the public URL will be linked here.
+**API:** https://construction-quote-api.onrender.com
+**Interactive docs (Swagger):** https://construction-quote-api.onrender.com/docs
 
-<!-- Screenshots (Swagger UI, sample quote, generated PDF) are added with the deployment. -->
+Demo account (for the `/docs` "Authorize" button — login uses the OAuth2 form,
+`username` is the email):
+
+```
+demo@quoteapi.dev / DemoPass123
+```
+
+Note: the free tier sleeps when idle, so the first request can take ~30 s.
 
 ## Tech stack
 
