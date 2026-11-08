@@ -1,0 +1,24 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: quotes
+      POSTGRES_PASSWORD: quotes-dev-password
+      POSTGRES_DB: quotes
+    ports:
+      - "5432:5432"
+    volumes:
+      - quotes-db:/var/lib/postgresql/data
+
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://quotes:quotes-dev-password@db:5432/quotes
+      SECRET_KEY: dev-only-secret-change-in-production-0123456789
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+
+volumes:
+  quotes-db:
