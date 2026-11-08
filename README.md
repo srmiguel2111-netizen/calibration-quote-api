@@ -1,17 +1,34 @@
 # Construction Quote API
 
-Calibration build — a small FastAPI service that turns construction line items
-into priced quotes, with JWT authentication and totals that are always
-computed on the server.
+A REST API that lets a contractor create priced construction quotes: a client,
+line items (description, quantity, unit price), totals that are **always
+computed on the server**, user accounts with JWT authentication, and a
+printable PDF of every quote.
 
-## Stack
+Built with **FastAPI + SQLAlchemy**, migrated with **Alembic**, tested with
+**pytest**, packaged with **Docker** and deployed on **Render + Supabase
+(PostgreSQL)**.
 
-- **FastAPI** + **SQLAlchemy 2.0** (SQLite for this calibration build;
-  the database URL is environment-driven, PostgreSQL in Project 1)
-- **JWT** auth (PyJWT) with Argon2 password hashing (pwdlib)
-- **pytest** + FastAPI `TestClient`
+## Live demo
 
-## Run it
+Deployment in progress — the public URL will be linked here.
+
+<!-- Screenshots (Swagger UI, sample quote, generated PDF) are added with the deployment. -->
+
+## Tech stack
+
+- **FastAPI** + **Pydantic v2** — request/response validation
+- **SQLAlchemy 2.0** + **Alembic** — ORM and versioned migrations
+- **PostgreSQL** in production (Supabase), SQLite for tests/local — same code,
+  the database is chosen by the `DATABASE_URL` environment variable
+- **JWT** auth (PyJWT) with **Argon2** password hashing (pwdlib)
+- **fpdf2** — pure-Python PDF generation, no system dependencies
+- **pytest** + **GitHub Actions** — 15 tests and a Docker build on every push
+- **Docker** + docker-compose (app + PostgreSQL in one command)
+
+## Run locally
+
+Without Docker (SQLite):
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
@@ -19,23 +36,45 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-Interactive docs at `http://127.0.0.1:8000/docs`.
+With Docker (app + PostgreSQL):
 
-## Endpoints
+```bash
+docker compose up --build
+```
 
-| Method | Path            | Auth | Description                                  |
-| ------ | --------------- | ---- | -------------------------------------------- |
-| POST   | `/auth/register` | —    | Create an account                            |
-| POST   | `/auth/login`    | —    | Get a JWT access token                       |
-| POST   | `/quotes`        | JWT  | Create a quote; totals computed server-side  |
-| GET    | `/quotes`        | JWT  | List your own quotes                         |
-| GET    | `/quotes/{id}`   | JWT  | Read one of your quotes (404 if not yours)   |
-| DELETE | `/quotes/{id}`   | JWT  | Delete one of your quotes                    |
-| GET    | `/health`        | —    | Health check                                 |
+Then open the interactive docs at `http://127.0.0.1:8000/docs`.
 
-Quote items carry `quantity` and `unit_price`; the API returns `subtotal`,
-`tax_amount` (default 18%) and `total`. Any total sent by the client is
-ignored by design.
+Apply the database migrations (production / PostgreSQL):
+
+```bash
+alembic upgrade head
+```
+
+## API overview
+
+| Method | Path               | Auth | Description                                     |
+| ------ | ------------------ | ---- | ----------------------------------------------- |
+| GET    | `/health`          | —    | Health check                                    |
+| POST   | `/auth/register`   | —    | Create an account                               |
+| POST   | `/auth/login`      | —    | Get a JWT access token                          |
+| POST   | `/quotes`          | JWT  | Create a quote with its items                   |
+| GET    | `/quotes`          | JWT  | List your quotes (`limit` / `offset` pagination) |
+| GET    | `/quotes/{id}`     | JWT  | Read one of your quotes (404 if not yours)      |
+| PATCH  | `/quotes/{id}`     | JWT  | Update fields and/or replace the items          |
+| DELETE | `/quotes/{id}`     | JWT  | Delete one of your quotes                       |
+| GET    | `/quotes/{id}/pdf` | JWT  | Download the quote as a PDF                     |
+
+A quote has a client name, a title, a status (`draft` / `sent` / `approved`),
+an optional note and its line items. Every quote belongs to exactly one user:
+other users can't read, edit, delete or download it — they get a 404.
+
+## How totals are calculated
+
+The client only sends descriptions, quantities and unit prices. The server
+computes each line total, the subtotal, the tax (`subtotal × tax_rate`, where
+`tax_rate` is a fraction — `0.18` means 18%) and the grand total. Totals are
+derived from the items on every read, so they can never drift out of sync,
+and any total sent by the client is ignored.
 
 ## Tests
 
@@ -43,5 +82,22 @@ ignored by design.
 pytest -q
 ```
 
-Covers registration, duplicate emails, authentication requirements,
-server-side total computation and per-user data isolation.
+The suite (15 tests) covers registration and login rules, authentication
+requirements, full quote CRUD, pagination, server-side total computation with
+several tax rates, PDF generation, and per-user data isolation — including
+that one user cannot read, patch, delete or download another user's quote.
+
+## Project structure
+
+```
+app/
+  main.py      FastAPI app and endpoints
+  models.py    SQLAlchemy models (User, Quote, QuoteItem)
+  schemas.py   Pydantic request/response schemas
+  auth.py      Password hashing and JWT helpers
+  database.py  Engine/session, DATABASE_URL from the environment
+  pdf.py       Quote PDF rendering (fpdf2)
+alembic/       Versioned database migrations
+tests/         pytest suite (runs against a throwaway database)
+Dockerfile, docker-compose.yml
+```
